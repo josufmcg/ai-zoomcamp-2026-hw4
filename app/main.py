@@ -8,6 +8,9 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+from app.telemetry import log_order_lookup, request_counter, tracer
 
 
 DB_PATH = Path(os.getenv("ORDER_DB_PATH", "data/orders.db"))
@@ -79,6 +82,40 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Order Tracker", lifespan=lifespan)
 
 
+class RequestMetricsMiddleware:
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        status_code = 500
+
+        async def record_status(message):
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+            await send(message)
+
+        try:
+            await self.app(scope, receive, record_status)
+        finally:
+            route = scope.get("route")
+            route_path = getattr(route, "path", "<unmatched>")
+            request_counter.add(
+                1,
+                {
+                    "http.route": route_path,
+                    "http.response.status_code": status_code,
+                },
+            )
+
+
+app.add_middleware(RequestMetricsMiddleware)
+
+
 @app.get("/")
 def index():
     return FileResponse(Path(__file__).parent.parent / "static" / "index.html")
@@ -100,11 +137,17 @@ def list_orders():
 
 @app.get("/api/orders/{order_id}")
 def get_order(order_id: str):
-    with connect() as db:
-        row = db.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
-    if row is None:
-        raise HTTPException(404, "Order not found")
-    return order_detail(row)
+    with tracer.start_as_current_span("order.lookup") as span:
+        span.set_attribute("order.id", order_id)
+        with connect() as db:
+            row = db.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
+        if row is None:
+            span.set_attribute("order.lookup.result", "not_found")
+            log_order_lookup(order_id, found=False)
+            raise HTTPException(404, "Order not found")
+        span.set_attribute("order.lookup.result", "found")
+        log_order_lookup(order_id, found=True)
+        return order_detail(row)
 
 
 @app.post("/api/orders", status_code=201)
