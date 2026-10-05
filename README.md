@@ -1,6 +1,6 @@
 # Order Tracker
 
-A small order tracking app for the AI Dev Tools Zoomcamp observability homework. It includes a web page, API, tests, and a Docker Compose setup. OpenTelemetry metrics, logs, and traces are exported to the app container's console.
+A small order tracking app for the AI Dev Tools Zoomcamp observability homework. It includes a web page, API, tests, and a Docker Compose observability stack. OpenTelemetry metrics, logs, and traces are sent from the app to the Collector, then stored in Prometheus, Loki, and Tempo.
 
 The main user flow is creating an order and checking its status. Three sample orders are created on first startup.
 
@@ -9,28 +9,28 @@ The main user flow is creating an order and checking its status. Three sample or
 You need Docker with Compose. To run the tests, you also need Python 3.11+ and `uv`.
 
 ```bash
-docker compose up --build -d --wait
+docker compose up --build -d
 ```
 
-Open <http://127.0.0.1:8000>. The API is at `/api/orders`, and the health check is at `/healthz`. Data is stored in a Docker volume and survives container recreation.
+Open <http://127.0.0.1:8000> for the app and <http://127.0.0.1:3000> for Grafana. The default Grafana login is `admin` / `admin`; set `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` before starting to change it. The provisioned **Order Tracker** dashboard shows request and error rates. Prometheus is available at <http://127.0.0.1:9090>, Loki at <http://127.0.0.1:3100>, and Tempo at <http://127.0.0.1:3200>.
 
-If port 8000 is occupied, set `ORDER_TRACKER_PORT`, for example:
+If a port is occupied, set `ORDER_TRACKER_PORT`, `GRAFANA_PORT`, `PROMETHEUS_PORT`, `LOKI_PORT`, or `TEMPO_PORT`, for example:
 
 ```bash
-ORDER_TRACKER_PORT=18080 docker compose up --build -d --wait
+ORDER_TRACKER_PORT=18080 GRAFANA_PORT=3300 docker compose up --build -d
 ```
 
-Run tests with `uv run --frozen pytest -q`. Stop the app with `docker compose down`. Add `-v` only if you also want to delete the order data.
+Run tests with `uv run --frozen pytest -q`. Stop the stack with `docker compose down`. Add `-v` only if you also want to delete the order and observability data.
 
 ## Telemetry
 
-Inspect exported telemetry with:
+Inspect Collector and app logs with:
 
 ```bash
-docker compose logs -f app
+docker compose logs -f app otel-collector
 ```
 
-Each HTTP request increments `http.server.request.count` with `http.route` and `http.response.status_code` attributes. Order detail lookups emit an `order.lookup` trace span and a structured log record, including whether the order was found. Metrics are exported every five seconds; spans and logs are written as lookups happen.
+Each HTTP request increments `http.server.request.count` with `http.route` and `http.response.status_code` attributes. Order detail lookups emit an `order.lookup` trace span and a structured log record, including whether the order was found. The Collector receives OTLP over gRPC, exports metrics for Prometheus scraping, and forwards logs and traces to Loki and Tempo.
 
 ## API
 

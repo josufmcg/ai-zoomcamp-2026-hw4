@@ -1,41 +1,45 @@
 import atexit
-import sys
+import os
 
 from opentelemetry import _logs, metrics, trace
 from opentelemetry._logs import SeverityNumber
+from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk._logs import LoggerProvider
-from opentelemetry.sdk._logs.export import ConsoleLogRecordExporter, SimpleLogRecordProcessor
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, PeriodicExportingMetricReader
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 
-class CurrentStdout:
-    def write(self, value: str) -> int:
-        return sys.stdout.write(value)
-
-    def flush(self) -> None:
-        sys.stdout.flush()
-
-
-console_output = CurrentStdout()
 resource = Resource.create({"service.name": "order-tracker"})
+endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 
-metric_reader = PeriodicExportingMetricReader(
-    ConsoleMetricExporter(out=console_output),
-    export_interval_millis=5_000,
-)
-meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
+metric_readers = []
+span_processors = []
+log_record_processors = []
+if endpoint:
+    metric_readers.append(
+        PeriodicExportingMetricReader(
+            OTLPMetricExporter(endpoint=endpoint),
+            export_interval_millis=5_000,
+        )
+    )
+    span_processors.append(BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint)))
+    log_record_processors.append(
+        BatchLogRecordProcessor(OTLPLogExporter(endpoint=endpoint))
+    )
+
+meter_provider = MeterProvider(resource=resource, metric_readers=metric_readers)
 trace_provider = TracerProvider(resource=resource)
-trace_provider.add_span_processor(
-    SimpleSpanProcessor(ConsoleSpanExporter(out=console_output))
-)
 logger_provider = LoggerProvider(resource=resource)
-logger_provider.add_log_record_processor(
-    SimpleLogRecordProcessor(ConsoleLogRecordExporter(out=console_output))
-)
+for span_processor in span_processors:
+    trace_provider.add_span_processor(span_processor)
+for log_record_processor in log_record_processors:
+    logger_provider.add_log_record_processor(log_record_processor)
 
 metrics.set_meter_provider(meter_provider)
 trace.set_tracer_provider(trace_provider)

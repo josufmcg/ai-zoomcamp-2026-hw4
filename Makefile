@@ -13,7 +13,7 @@ down:
 	$(COMPOSE) down
 
 logs:
-	$(COMPOSE) logs -f app
+	$(COMPOSE) logs -f app otel-collector
 
 url:
 	@echo "http://127.0.0.1:$(PORT)"

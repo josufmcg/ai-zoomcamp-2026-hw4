@@ -2,7 +2,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import main
-from app.telemetry import meter_provider
 
 
 @pytest.fixture
@@ -32,16 +31,6 @@ def test_create_and_update_order(client):
     assert updated.json()["status"] == "shipped"
 
 
-def test_order_lookup_emits_log_and_trace(client, capsys):
+def test_order_lookup(client):
     assert client.get("/api/orders/standard-1001").status_code == 200
     assert client.get("/api/orders/missing").status_code == 404
-    assert meter_provider.force_flush()
-
-    output = capsys.readouterr().out
-    assert "order.lookup" in output
-    assert "Order lookup completed" in output
-    assert "order.lookup.result" in output
-    assert "not_found" in output
-    assert "http.server.request.count" in output
-    assert '"http.route": "/api/orders/{order_id}"' in output
-    assert '"http.response.status_code": 404' in output
