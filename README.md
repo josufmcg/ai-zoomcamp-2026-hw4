@@ -14,6 +14,16 @@ docker compose up --build -d
 
 Open <http://127.0.0.1:8000> for the app and <http://127.0.0.1:3000> for Grafana. The default Grafana login is `admin` / `admin`; set `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` before starting to change it. The provisioned **Order Tracker** dashboard shows request and error rates, and Grafana includes a 5xx alert evaluated over a five-minute window. Prometheus is available at <http://127.0.0.1:9090>, Loki at <http://127.0.0.1:3100>, and Tempo at <http://127.0.0.1:3200>.
 
+### Incident response
+
+Start the host-side incident receiver in a second terminal:
+
+```bash
+make incident-response
+```
+
+Grafana sends alerts to `POST /alerts` on port 8001. The receiver stores the alert in `incident-response/incidents.db`, collects recent Order Tracker logs from Loki and traces from Tempo, and starts Claude Code in headless read-only plan mode (`Read` tool only) for firing alerts. Install and authenticate Claude Code on the host before starting the receiver. Use `GET /incidents` and `GET /incidents/{id}` from localhost to inspect saved context and diagnosis. The webhook is accepted only from localhost or the configured Compose subnet; keep `INCIDENT_RESPONSE_TRUSTED_SUBNET` aligned with `ORDER_TRACKER_SUBNET`.
+
 If a port is occupied, set `ORDER_TRACKER_PORT`, `GRAFANA_PORT`, `PROMETHEUS_PORT`, `LOKI_PORT`, or `TEMPO_PORT`, for example:
 
 ```bash
