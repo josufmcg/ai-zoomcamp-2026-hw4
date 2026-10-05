@@ -12,7 +12,7 @@ You need Docker with Compose. To run the tests, you also need Python 3.11+ and `
 docker compose up --build -d
 ```
 
-Open <http://127.0.0.1:8000> for the app and <http://127.0.0.1:3000> for Grafana. The default Grafana login is `admin` / `admin`; set `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` before starting to change it. The provisioned **Order Tracker** dashboard shows request and error rates. Prometheus is available at <http://127.0.0.1:9090>, Loki at <http://127.0.0.1:3100>, and Tempo at <http://127.0.0.1:3200>.
+Open <http://127.0.0.1:8000> for the app and <http://127.0.0.1:3000> for Grafana. The default Grafana login is `admin` / `admin`; set `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` before starting to change it. The provisioned **Order Tracker** dashboard shows request and error rates, and Grafana includes a 5xx alert evaluated over a five-minute window. Prometheus is available at <http://127.0.0.1:9090>, Loki at <http://127.0.0.1:3100>, and Tempo at <http://127.0.0.1:3200>.
 
 If a port is occupied, set `ORDER_TRACKER_PORT`, `GRAFANA_PORT`, `PROMETHEUS_PORT`, `LOKI_PORT`, or `TEMPO_PORT`, for example:
 

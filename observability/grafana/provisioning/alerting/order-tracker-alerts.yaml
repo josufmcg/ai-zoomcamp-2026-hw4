@@ -1,0 +1,91 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: order-tracker
+    folder: Order Tracker
+    interval: 1m
+    rules:
+      - uid: order-tracker-5xx
+        title: Order Tracker 5xx responses
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: sum by (http_route) (increase(http_server_request_count_total{http_response_status_code=~"5.."}[5m])) or on() vector(0)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - B
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+              settings:
+                mode: replaceNN
+                replaceWithValue: 0
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              refId: C
+              type: threshold
+        dashboardUid: order-tracker
+        panelId: 2
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: '5xx responses on {{ $labels.http_route }}'
+          description: >-
+            The endpoint {{ $labels.http_route }} returned one or more 5xx
+            responses in the last 5 minutes. The alert is evaluated every
+            minute and fires after 1 minute above zero.
+          dashboard_url: http://localhost:3000/d/order-tracker/order-tracker
+        labels:
+          severity: warning
+          service: order-tracker
